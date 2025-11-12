@@ -1,0 +1,60 @@
+/* Modern dark UI (v0.2.4) */
+:root{
+  --bg:#0b0f14;--panel:#0f1622;--card:#121b2b;--fg:#e6edf3;--muted:#9fb0c3;
+  --acc:#6dd3fb;--acc2:#66ffa8;--purple:#a78bfa;--blue:#60a5fa;--danger:#ff6b6b;
+  --border:#213044;--shadow:0 10px 30px rgba(0,0,0,.35)
+}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 600px at 20% -10%,#173555 0%,#0b0f14 60%) fixed;color:var(--fg);font:15px/1.5 Inter,system-ui,Segoe UI,Roboto,Arial}
+a{color:var(--acc)}
+header{position:sticky;top:0;background:rgba(11,15,20,.9);backdrop-filter:blur(6px);border-bottom:1px solid var(--border);z-index:10}
+.wrap{max-width:1100px;margin:0 auto;padding:18px 20px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:var(--shadow)}
+.title{font-weight:800;letter-spacing:.3px}
+.subtitle{color:var(--muted);font-size:12px;margin-top:2px}
+main .wrap{padding:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px}
+.card{background:linear-gradient(180deg,rgba(18,27,43,.9),rgba(12,18,28,.9));border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:var(--shadow)}
+h2{margin:0 0 12px 0;font-size:16px}
+.muted{color:var(--muted);font-size:12px}
+.badges{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.badge{border:1px solid var(--border);border-radius:999px;padding:4px 10px;color:var(--muted);font-size:12px}
+.badge.label{color:#cfe6ff;border-style:dashed}
+.notice{padding:10px 12px;border:1px dashed var(--border);border-radius:12px;background:#0e1523;color:var(--muted);font-size:12px}
+
+/* Inputs — friendlier font & size (tabular numbers for dates) */
+label{display:block;margin:8px 0 6px}
+input[type="number"],input[type="date"],input[type="time"],input[type="datetime-local"],input[type="month"],textarea,select{
+  width:100%;padding:11px 12px;border-radius:10px;background:#0d1320;border:1px solid var(--border);
+  color:var(--fg);outline:none;font:600 15px/1.35 Inter,system-ui,Segoe UI,Roboto,Arial;
+  font-variant-numeric: tabular-nums;
+}
+input::placeholder, textarea::placeholder{color:#95a3b8}
+input:focus, textarea:focus, select:focus{border-color:var(--acc)}
+.row{display:flex;gap:10px}
+.tap-picker{cursor:pointer}
+.tap-picker:hover{filter:brightness(1.05)}
+
+/* Pills for recommended times */
+.inline-pills{display:flex;gap:6px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:4px 10px;background:#0d1320;color:var(--fg);font-size:12px}
+.pill-hot{border-color:var(--danger);color:#ffc7c7;box-shadow:0 0 0 1px rgba(255,107,107,.25) inset}
+
+/* Buttons — tiered colors (都看起来可点击) */
+button{
+  display:inline-flex;align-items:center;gap:8px;border:none;border-radius:12px;padding:10px 14px;
+  font-weight:800;cursor:pointer;box-shadow:var(--shadow);transition:transform .03s ease;
+}
+button:active{transform:translateY(1px)}
+/* 每日要做（绿色系） */
+.btn-daily{background:linear-gradient(135deg,var(--acc2),#7ae6be);color:#031b12}
+/* 周/偶尔（紫蓝系） */
+.btn-weekly{background:linear-gradient(135deg,var(--purple),var(--blue));color:#071222}
+/* 辅助/普通（亮蓝系，不再是灰色） */
+.btn-aux{background:linear-gradient(135deg,var(--acc),var(--blue));color:#001018}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th,td{padding:9px;border-bottom:1px solid var(--border);text-align:left}
+th{font-weight:800}
