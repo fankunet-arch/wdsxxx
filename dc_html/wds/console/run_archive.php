@@ -2,14 +2,11 @@
 require_once(__DIR__ . '/../../../app/wds/bootstrap/app.php');
 use WDS\ingest\OpenMeteoIngest;
 
-
-<?php
 function _wds_rel_snap(string $abs) : string {
   $prefix = rtrim(APP_WDS . '/storage/raw', '/');
   $rel = preg_replace('#^' . preg_quote($prefix, '#') . '#', '', $abs);
   return $rel ?: basename($abs);
 }
-?>
 
 $start = $_POST['start'] ?? null;
 $end   = $_POST['end'] ?? null;
