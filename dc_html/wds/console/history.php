@@ -42,8 +42,8 @@ foreach ($days as $dtDay) {
   foreach ($SLOTS as $hm) {
     [$H,$M] = array_map('intval', explode(':', $hm));
     $slotLocal = $dtDay->setTime($H, $M, 0);
-    $u1 = $toUtc($slotLocal->modify('-30 minutes'));
-    $u2 = $toUtc($slotLocal->modify('+30 minutes'));
+    $u1 = $toUtc($slotLocal->modify('-60 minutes'));
+    $u2 = $toUtc($slotLocal->modify('+60 minutes'));
     $done=0; $total = max(1, count($locs));
     foreach ($locs as $loc) {
       $qFc->execute([':loc'=>$loc['location_id'], ':u1'=>$u1, ':u2'=>$u2]);
@@ -129,7 +129,7 @@ $version = 'wds-0.3.3';
       <h2>预报执行情况</h2>
       <div class="muted2">
         展示区间：<span class="nums"><?=$days[0]->format('Y-m-d')?> → <?=end($days)->format('Y-m-d')?></span>，
-        推荐时段：<?php foreach($SLOTS as $s){ echo "<span class='pill'>".$s."</span> "; } ?>（±30 分钟算命中）。
+        推荐时段：<?php foreach($SLOTS as $s){ echo "<span class='pill'>".$s."</span> "; } ?>（±60 分钟算命中）。
         单元格值：<b>x/y</b> = 已执行地点数 / 总地点数。
       </div>
       <table class="grid-table" style="margin-top:10px">

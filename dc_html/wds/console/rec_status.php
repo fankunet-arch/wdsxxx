@@ -28,8 +28,8 @@ try {
     }
     $slotLocal = $best;
     $slotUtc = $slotLocal->setTimezone(new DateTimeZone('UTC'));
-    $u1 = $slotUtc->modify('-30 minutes')->format('Y-m-d H:i:s');
-    $u2 = $slotUtc->modify('+30 minutes')->format('Y-m-d H:i:s');
+    $u1 = $slotUtc->modify('-60 minutes')->format('Y-m-d H:i:s');
+    $u2 = $slotUtc->modify('+60 minutes')->format('Y-m-d H:i:s');
     $q->execute([':u1'=>$u1, ':u2'=>$u2]);
     $done = $q->fetchColumn() ? true : false;
     $out['slots'][] = [
