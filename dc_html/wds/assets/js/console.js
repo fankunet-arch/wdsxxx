@@ -19,18 +19,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!inp) return;
     box.style.cursor = 'pointer';
     
-    // NEW: Add a click listener directly to the input to ensure it opens the picker 
-    // when clicked, and stop propagation to prevent the 'box' listener from re-firing.
-    inp.addEventListener('click', (e) => {
-      // Prevents the click from bubbling to the 'box' listener below
-      e.stopPropagation();
-      if (typeof inp.showPicker === 'function') { try { inp.showPicker(); return; } catch {} }
-    });
+    // 移除 inp 上的独立监听器。现在只依赖 box 的监听器。
+    // 此外，移除所有阻止冒泡的逻辑，让点击事件自然地冒泡到父级 .tap-picker。
 
-    // Existing: Handle click on the container (for clicks on the label text and padding)
+    // Handle click on the container (for clicks on the input, label text, and padding)
     box.addEventListener('click', () => {
-      if (typeof inp.showPicker === 'function') { try { inp.showPicker(); return; } catch {} }
-      inp.focus(); try { inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true})); } catch {}
+      if (typeof inp.showPicker === 'function') { 
+        try { 
+          inp.showPicker(); 
+          return; 
+        } catch {} 
+      }
+      // Fallback logic
+      inp.focus(); 
+      try { 
+        inp.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true})); 
+      } catch {}
     });
   });
 
@@ -70,7 +74,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         let d = s.target_epoch_ms - now;
         if (d <= 0) d += 24*60*60*1000;
         if (d < bestDiff) { bestDiff = d; nextIdx = i; }
-      });
+      }
+      );
 
       const near = slots[nearIdx];
       const next = slots[nextIdx];
