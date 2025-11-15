@@ -5,7 +5,7 @@ try {
   $pdo = db();
   $cfg = cfg();
   $tzLocal = $cfg['timezone_local'] ?? 'Europe/Madrid';
-  $slots = ['07:15','11:15','13:15','19:15','01:15'];
+  $slots = ['01:15','11:15','13:15','16:15','19:15'];
   $now = new DateTimeImmutable('now', new DateTimeZone($tzLocal));
   $out = [
     'now_local' => $now->format('Y-m-d H:i'),
@@ -28,8 +28,8 @@ try {
     }
     $slotLocal = $best;
     $slotUtc = $slotLocal->setTimezone(new DateTimeZone('UTC'));
-    $u1 = $slotUtc->modify('-60 minutes')->format('Y-m-d H:i:s');
-    $u2 = $slotUtc->modify('+60 minutes')->format('Y-m-d H:i:s');
+    $u1 = $slotUtc->modify('-30 minutes')->format('Y-m-d H:i:s');
+    $u2 = $slotUtc->modify('+30 minutes')->format('Y-m-d H:i:s');
     $q->execute([':u1'=>$u1, ':u2'=>$u2]);
     $done = $q->fetchColumn() ? true : false;
     $out['slots'][] = [

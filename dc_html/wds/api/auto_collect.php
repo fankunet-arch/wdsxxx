@@ -18,7 +18,7 @@ try {
   $tzLocal = $cfg['timezone_local'] ?? 'Europe/Madrid';
   $days = isset($_GET['days']) ? max(1, min(16, (int)$_GET['days'])) : 16;
 
-  $SLOTS = ['01:15','07:15','11:15','13:15','19:15'];
+  $SLOTS = ['01:15','11:15','13:15','16:15','19:15']; // 修改点
   $WINDOW_MIN = 10;
 
   $nowLocal = new \DateTimeImmutable('now', new \DateTimeZone($tzLocal));
@@ -33,7 +33,7 @@ try {
     if ($nowLocal >= $winStart && $nowLocal <= $winEnd) { $hitSlot = ['hm'=>$hm,'start'=>$winStart,'end'=>$winEnd,'slot'=>$slot]; break; }
   }
 
-  $base = ['ok'=>true,'now_local'=>$nowLocal->format('Y-m-d H:i:s'),'timezone'=>$tzLocal,'window_min'=>$WINDOW_MIN,'slots'=>['01:15','07:15','11:15','13:15','19:15']];
+  $base = ['ok'=>true,'now_local'=>$nowLocal->format('Y-m-d H:i:s'),'timezone'=>$tzLocal,'window_min'=>$WINDOW_MIN,'slots'=>$SLOTS]; // 修改点
 
   if ($hitSlot === null) { echo json_encode($base + ['in_window'=>false,'action'=>'noop','reason'=>'outside_window']); exit; }
 

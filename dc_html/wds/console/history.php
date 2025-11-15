@@ -10,7 +10,7 @@ $todayLoc  = new DateTimeImmutable('now', new DateTimeZone($tzLocal));
 $back = isset($_GET['back']) ? max(0, min(14, (int)$_GET['back'])) : 3;
 $fwd  = isset($_GET['fwd'])  ? max(0, min(14, (int)$_GET['fwd']))  : 2;
 
-$SLOTS = ['07:15','11:15','13:15','19:15','01:15'];
+$SLOTS = ['01:15','11:15','13:15','16:15','19:15']; // 修改点
 
 $openHour  = (int)($pdo->query("SELECT open_hour_local FROM wds_business_hours LIMIT 1")->fetchColumn() ?: 12);
 $closeHour = (int)($pdo->query("SELECT close_hour_local FROM wds_business_hours LIMIT 1")->fetchColumn() ?: 22);
@@ -42,8 +42,8 @@ foreach ($days as $dtDay) {
   foreach ($SLOTS as $hm) {
     [$H,$M] = array_map('intval', explode(':', $hm));
     $slotLocal = $dtDay->setTime($H, $M, 0);
-    $u1 = $toUtc($slotLocal->modify('-60 minutes'));
-    $u2 = $toUtc($slotLocal->modify('+60 minutes'));
+    $u1 = $toUtc($slotLocal->modify('-30 minutes'));
+    $u2 = $toUtc($slotLocal->modify('+30 minutes'));
     $done=0; $total = max(1, count($locs));
     foreach ($locs as $loc) {
       $qFc->execute([':loc'=>$loc['location_id'], ':u1'=>$u1, ':u2'=>$u2]);
