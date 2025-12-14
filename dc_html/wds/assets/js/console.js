@@ -19,10 +19,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!inp) return;
     box.style.cursor = 'pointer';
     
-    // 移除 inp 上的独立监听器。现在只依赖 box 的监听器。
-    // 此外，移除所有阻止冒泡的逻辑，让点击事件自然地冒泡到父级 .tap-picker。
+    // FIX STEP 1: Add a click listener directly to the input to prevent its *native* picker 
+    // from opening (which interferes with our custom logic) while allowing the event 
+    // to bubble up to the parent `box`.
+    inp.addEventListener('click', (e) => {
+      // 阻止 input 的默认点击行为（即原生日历弹出）。
+      e.preventDefault(); 
+      // 不阻止事件冒泡，让事件继续传递给父容器 'box'。
+    });
 
-    // Handle click on the container (for clicks on the input, label text, and padding)
+    // FIX STEP 2: The handler on the container captures clicks on the label/padding OR 
+    // the input (由于事件冒泡 and input 的默认行为已被阻止), 并执行程序化打开日历的操作。
     box.addEventListener('click', () => {
       if (typeof inp.showPicker === 'function') { 
         try { 
@@ -74,8 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let d = s.target_epoch_ms - now;
         if (d <= 0) d += 24*60*60*1000;
         if (d < bestDiff) { bestDiff = d; nextIdx = i; }
-      }
-      );
+      });
 
       const near = slots[nearIdx];
       const next = slots[nextIdx];

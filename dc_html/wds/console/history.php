@@ -10,7 +10,7 @@ $todayLoc  = new DateTimeImmutable('now', new DateTimeZone($tzLocal));
 $back = isset($_GET['back']) ? max(0, min(14, (int)$_GET['back'])) : 3;
 $fwd  = isset($_GET['fwd'])  ? max(0, min(14, (int)$_GET['fwd']))  : 2;
 
-$SLOTS = ['01:15','11:15','13:15','16:15','19:15']; // 修改点
+$SLOTS = ['01:15','11:15','13:15','16:15','19:15'];
 
 $openHour  = (int)($pdo->query("SELECT open_hour_local FROM wds_business_hours LIMIT 1")->fetchColumn() ?: 12);
 $closeHour = (int)($pdo->query("SELECT close_hour_local FROM wds_business_hours LIMIT 1")->fetchColumn() ?: 22);
@@ -42,6 +42,7 @@ foreach ($days as $dtDay) {
   foreach ($SLOTS as $hm) {
     [$H,$M] = array_map('intval', explode(':', $hm));
     $slotLocal = $dtDay->setTime($H, $M, 0);
+    // 修正点 1: 将 ±60 minutes 改为 ±30 minutes，与首页推荐时段保持一致
     $u1 = $toUtc($slotLocal->modify('-30 minutes'));
     $u2 = $toUtc($slotLocal->modify('+30 minutes'));
     $done=0; $total = max(1, count($locs));
@@ -129,7 +130,7 @@ $version = 'wds-0.3.3';
       <h2>预报执行情况</h2>
       <div class="muted2">
         展示区间：<span class="nums"><?=$days[0]->format('Y-m-d')?> → <?=end($days)->format('Y-m-d')?></span>，
-        推荐时段：<?php foreach($SLOTS as $s){ echo "<span class='pill'>".$s."</span> "; } ?>（±60 分钟算命中）。
+        推荐时段：<?php foreach($SLOTS as $s){ echo "<span class='pill'>".$s."</span> "; } ?>（±30 分钟算命中）。
         单元格值：<b>x/y</b> = 已执行地点数 / 总地点数。
       </div>
       <table class="grid-table" style="margin-top:10px">
