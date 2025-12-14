@@ -54,11 +54,47 @@ try {
   $ing = new OpenMeteoIngest($pdo, $cfg);
   $rows = $ing->fetchForecast($days);
 
+  // 01:15 采集时，同时回填最近2天（t-2 ~ t）
+  $archiveRows = null; $archiveStart = null; $archiveEnd = null;
+  if ($hitSlot['hm'] === '01:15') {
+    $archiveStart = $todayLocal->modify('-2 days')->format('Y-m-d');
+    $archiveEnd   = $todayLocal->format('Y-m-d');
+    try {
+      $archiveRows = $ing->fetchArchive($archiveStart, $archiveEnd);
+    } catch (\Throwable $e2) {
+      error_log("AutoCollect archive failed: " . $e2->getMessage());
+    }
+  }
+
   $prefix = rtrim(APP_WDS . '/storage/raw', '/');
   $rel = function($abs) use ($prefix){ $rel=preg_replace('#^'.preg_quote($prefix,'#').'#','',$abs); return $rel ?: basename($abs); };
 
   $saved=[]; if (is_array($rows)) { foreach ($rows as $r) { $saved[]=['location_id'=>(int)$r['location_id'],'snapshot'=>$rel($r['snapshot'])]; } }
-  echo json_encode($base + ['in_window'=>true,'slot'=>['hm'=>$hitSlot['hm'],'window_local'=>[$hitSlot['start']->format('Y-m-d H:i'),$hitSlot['end']->format('Y-m-d H:i')]],'locations_total'=>$totalLoc,'locations_done'=>$doneLoc,'action'=>'collected','days'=>$days,'saved'=>$saved]);
+
+  $savedArchive=[];
+  if (is_array($archiveRows)) {
+    foreach ($archiveRows as $r) {
+      $savedArchive[]=['location_id'=>(int)$r['location_id'],'snapshot'=>$rel($r['snapshot'])];
+    }
+  }
+
+  $resp = $base + [
+    'in_window'=>true,
+    'slot'=>['hm'=>$hitSlot['hm'],'window_local'=>[$hitSlot['start']->format('Y-m-d H:i'),$hitSlot['end']->format('Y-m-d H:i')]],
+    'locations_total'=>$totalLoc,
+    'locations_done'=>$doneLoc,
+    'action'=>'collected',
+    'days'=>$days,
+    'saved'=>$saved
+  ];
+  if ($archiveRows !== null) {
+    $resp['archive'] = [
+      'start'=>$archiveStart,
+      'end'=>$archiveEnd,
+      'saved'=>$savedArchive
+    ];
+  }
+  echo json_encode($resp);
 
 } catch (\Throwable $e) {
   http_response_code(500); echo json_encode(['ok'=>false,'error'=>$e->getMessage()]);
