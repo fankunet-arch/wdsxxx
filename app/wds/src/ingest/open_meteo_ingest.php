@@ -183,4 +183,197 @@ class OpenMeteoIngest {
         }
         return $out;
     }
+
+    /**
+     * 智能回填历史数据 - 只回填缺失的数据
+     * @param string $startYmd 开始日期 YYYY-MM-DD
+     * @param string $endYmd 结束日期 YYYY-MM-DD
+     * @param bool $skipIfExists 是否跳过已存在的数据
+     * @return array
+     */
+    public function fetchArchiveSmart(string $startYmd, string $endYmd, bool $skipIfExists = true) : array {
+        [$openH, $closeH] = $this->business_hours();
+        $tzLocal = $this->cfg['timezone_local'] ?? 'Europe/Madrid';
+
+        $out = [];
+        $skipped = [];
+
+        // 遍历每个地点
+        foreach ($this->active_locations() as $loc) {
+            $locId = (int)$loc['location_id'];
+
+            // 遍历日期范围，逐日检查
+            $currentDate = new DateTimeImmutable($startYmd);
+            $endDate = new DateTimeImmutable($endYmd);
+
+            while ($currentDate <= $endDate) {
+                $dateStr = $currentDate->format('Y-m-d');
+
+                // 检查数据是否完整
+                if ($skipIfExists) {
+                    $isComplete = $this->isArchiveComplete($locId, $dateStr);
+                    $hasSnapshot = $this->hasArchiveSnapshot($locId, $dateStr);
+
+                    // 如果数据完整且快照已存在，跳过
+                    if ($isComplete && $hasSnapshot) {
+                        $skipped[] = [
+                            'location_id' => $locId,
+                            'date' => $dateStr,
+                            'reason' => 'complete'
+                        ];
+                        $currentDate = $currentDate->modify('+1 day');
+                        continue;
+                    }
+                }
+
+                // 需要回填：拉取单日数据
+                try {
+                    $result = $this->fetchArchiveSingleDay($locId, $dateStr, $loc);
+                    if ($result) {
+                        $out[] = $result;
+                    }
+                } catch (\Throwable $e) {
+                    error_log("Archive fetch failed for location {$locId} date {$dateStr}: " . $e->getMessage());
+                }
+
+                $currentDate = $currentDate->modify('+1 day');
+            }
+        }
+
+        return [
+            'fetched' => $out,
+            'skipped' => $skipped
+        ];
+    }
+
+    /**
+     * 检查某地点某日期的历史数据是否完整
+     * @param int $locationId
+     * @param string $date YYYY-MM-DD
+     * @return bool
+     */
+    private function isArchiveComplete(int $locationId, string $date) : bool {
+        $sql = "SELECT COUNT(*) FROM wds_weather_hourly_observed
+                WHERE location_id = :lid
+                AND DATE(obs_time_utc) = :d";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([':lid' => $locationId, ':d' => $date]);
+        $count = (int)$stmt->fetchColumn();
+
+        // 营业时段11小时，如果>=9则认为完整（允许1-2小时容错）
+        return $count >= 9;
+    }
+
+    /**
+     * 检查某地点某日期的JSON快照是否已存在
+     * @param int $locationId
+     * @param string $date YYYY-MM-DD
+     * @return bool
+     */
+    private function hasArchiveSnapshot(int $locationId, string $date) : bool {
+        $month = substr($date, 0, 7); // YYYY-MM
+        $filename = sprintf('archive_%d_%s.json', $locationId, str_replace('-', '', $date));
+        $filepath = $this->rawDir . '/open_meteo_archive/' . $month . '/' . $filename;
+
+        return file_exists($filepath);
+    }
+
+    /**
+     * 回填单个地点单日数据
+     * @param int $locId
+     * @param string $date YYYY-MM-DD
+     * @param array $loc 地点信息
+     * @return array|null
+     */
+    private function fetchArchiveSingleDay(int $locId, string $date, array $loc) : ?array {
+        [$openH, $closeH] = $this->business_hours();
+        $tzLocal = $this->cfg['timezone_local'] ?? 'Europe/Madrid';
+
+        $lat = $loc['lat'];
+        $lon = $loc['lon'];
+
+        $url = sprintf(
+            'https://archive-api.open-meteo.com/v1/archive?latitude=%.5f&longitude=%.5f&start_date=%s&end_date=%s&hourly=temperature_2m,weathercode&timezone=UTC',
+            $lat, $lon, $date, $date
+        );
+
+        $j = $this->http_get_json($url);
+
+        // 使用日期命名的快照（避免重复）
+        $snap = $this->save_snapshot_by_date($j, 'open_meteo_archive', 'archive', $locId, $date);
+
+        // 插入数据库
+        $this->pdo->beginTransaction();
+        try {
+            $ins = $this->pdo->prepare("
+                INSERT INTO wds_weather_hourly_observed
+                (location_id, obs_time_utc, temp_c, wmo_code, created_at, updated_at)
+                VALUES (:loc, :ot, :t, :wmo, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
+                ON DUPLICATE KEY UPDATE
+                  temp_c=VALUES(temp_c),
+                  wmo_code=VALUES(wmo_code),
+                  updated_at=UTC_TIMESTAMP(6)
+            ");
+
+            $hourly = $j['hourly'] ?? null;
+            if ($hourly && isset($hourly['time'])) {
+                $times = $hourly['time'];
+                $temp  = $hourly['temperature_2m'] ?? [];
+                $wcode = $hourly['weathercode'] ?? [];
+
+                for ($i=0,$n=count($times); $i<$n; $i++) {
+                    $dtUtc = new DateTimeImmutable($times[$i], new DateTimeZone('UTC'));
+                    $dtLocal = $dtUtc->setTimezone(new DateTimeZone($tzLocal));
+                    $h = (int)$dtLocal->format('H');
+                    if ($h < $openH || $h > $closeH) continue;
+
+                    $ins->execute([
+                        ':loc'=>$locId,
+                        ':ot'=>$dtUtc->format('Y-m-d H:00:00.000000'),
+                        ':t'=> isset($temp[$i]) ? (int)round(((float)$temp[$i])*10) : null,
+                        ':wmo'=> isset($wcode[$i]) ? (int)$wcode[$i] : null,
+                    ]);
+                }
+            }
+
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+
+        return [
+            'location_id' => $locId,
+            'date' => $date,
+            'snapshot' => $snap
+        ];
+    }
+
+    /**
+     * 按日期保存快照（避免重复文件）
+     * @param array $j
+     * @param string $subdir
+     * @param string $prefix
+     * @param int $locId
+     * @param string $date YYYY-MM-DD
+     * @return string
+     */
+    private function save_snapshot_by_date(array $j, string $subdir, string $prefix, int $locId, string $date) : string {
+        $month = substr($date, 0, 7); // YYYY-MM
+        $dir   = $this->rawDir . '/' . $subdir . '/' . $month;
+        ensure_dir($dir);
+
+        // 文件名格式：archive_12345_20251216.json（无时间戳）
+        $name = sprintf('%s_%d_%s.json', $prefix, $locId, str_replace('-', '', $date));
+        $abs  = $dir . '/' . $name;
+
+        // 如果文件已存在，不重复保存（直接返回路径）
+        if (file_exists($abs)) {
+            return $abs;
+        }
+
+        file_put_contents($abs, json_encode($j, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return $abs;
+    }
 }
