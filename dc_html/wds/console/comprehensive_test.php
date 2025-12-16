@@ -109,7 +109,9 @@ $cfg = cfg();
 
         $missing = [];
         foreach ($requiredTables as $table) {
-            $exists = $pdo->query("SHOW TABLES LIKE '{$table}'")->fetch();
+            $stmt = $pdo->query("SHOW TABLES LIKE '{$table}'");
+            $exists = $stmt->fetch();
+            $stmt->closeCursor(); // 关闭游标
             if (!$exists) {
                 $missing[] = $table;
             }
@@ -132,7 +134,9 @@ $cfg = cfg();
 
         $missing = [];
         foreach ($optimizationTables as $table) {
-            $exists = $pdo->query("SHOW TABLES LIKE '{$table}'")->fetch();
+            $stmt = $pdo->query("SHOW TABLES LIKE '{$table}'");
+            $exists = $stmt->fetch();
+            $stmt->closeCursor(); // 关闭游标
             if (!$exists) {
                 $missing[] = $table;
             }
@@ -155,7 +159,9 @@ $cfg = cfg();
         $missing = [];
         foreach ($views as $view) {
             // 使用 SHOW FULL TABLES 检查视图，不依赖数据库名
-            $result = $pdo->query("SHOW FULL TABLES LIKE '{$view}'")->fetch();
+            $stmt = $pdo->query("SHOW FULL TABLES LIKE '{$view}'");
+            $result = $stmt->fetch();
+            $stmt->closeCursor(); // 关闭游标
             if (!$result) {
                 $missing[] = $view;
             } elseif (isset($result[1]) && strtoupper($result[1]) !== 'VIEW') {

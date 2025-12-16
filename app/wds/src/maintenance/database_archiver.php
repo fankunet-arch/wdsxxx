@@ -25,7 +25,10 @@ class DatabaseArchiver {
 
         // 检查归档表是否存在
         try {
-            $tableExists = $this->pdo->query("SHOW TABLES LIKE 'wds_weather_hourly_forecast_archive'")->fetch();
+            $stmt = $this->pdo->query("SHOW TABLES LIKE 'wds_weather_hourly_forecast_archive'");
+            $tableExists = $stmt->fetch();
+            $stmt->closeCursor(); // 关闭游标，释放连接
+
             if (!$tableExists) {
                 return [
                     'success' => false,
@@ -143,7 +146,9 @@ class DatabaseArchiver {
                 FROM wds_weather_hourly_forecast";
 
         $stmt = $this->pdo->query($sql);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->closeCursor(); // 关闭游标
+        return $result;
     }
 
     /**
@@ -152,7 +157,9 @@ class DatabaseArchiver {
      */
     public function getArchiveTableStats() : array {
         // 检查归档表是否存在
-        $tableExists = $this->pdo->query("SHOW TABLES LIKE 'wds_weather_hourly_forecast_archive'")->fetch();
+        $stmt = $this->pdo->query("SHOW TABLES LIKE 'wds_weather_hourly_forecast_archive'");
+        $tableExists = $stmt->fetch();
+        $stmt->closeCursor(); // 关闭游标
 
         if (!$tableExists) {
             return [
@@ -173,7 +180,9 @@ class DatabaseArchiver {
                 FROM wds_weather_hourly_forecast_archive";
 
         $stmt = $this->pdo->query($sql);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt->closeCursor(); // 关闭游标
+        return $result;
     }
 
     /**
