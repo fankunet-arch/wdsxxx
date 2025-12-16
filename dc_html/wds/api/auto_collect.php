@@ -1,6 +1,8 @@
 <?php
 require_once(__DIR__ . '/../../../app/wds/bootstrap/app.php');
 use WDS\ingest\OpenMeteoIngest;
+use WDS\maintenance\MonthlyArchiver;
+use WDS\maintenance\DatabaseArchiver;
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -54,15 +56,50 @@ try {
   $ing = new OpenMeteoIngest($pdo, $cfg);
   $rows = $ing->fetchForecast($days);
 
-  // 01:15 采集时，同时回填最近2天（t-2 ~ t）
-  $archiveRows = null; $archiveStart = null; $archiveEnd = null;
+  // ========== 智能回填（仅01:15槽执行） ==========
+  $archiveResult = null; $archiveStart = null; $archiveEnd = null;
   if ($hitSlot['hm'] === '01:15') {
     $archiveStart = $todayLocal->modify('-2 days')->format('Y-m-d');
     $archiveEnd   = $todayLocal->format('Y-m-d');
+
     try {
-      $archiveRows = $ing->fetchArchive($archiveStart, $archiveEnd);
+      // 使用智能回填方法（跳过已存在的数据）
+      $archiveResult = $ing->fetchArchiveSmart($archiveStart, $archiveEnd, true);
     } catch (\Throwable $e2) {
       error_log("AutoCollect archive failed: " . $e2->getMessage());
+      $archiveResult = ['error' => $e2->getMessage()];
+    }
+  }
+
+  // ========== 维护任务（仅01:15槽执行） ==========
+  $maintenanceResult = [];
+
+  if ($hitSlot['hm'] === '01:15') {
+    // 任务1：检查是否为每月1日，执行月度归档
+    if ((int)$nowLocal->format('d') === 1) {
+      try {
+        $lastMonth = date('Y-m', strtotime('-1 month'));
+        $archiver = new MonthlyArchiver($pdo, $cfg);
+        $maintenanceResult['monthly_archive'] = $archiver->executeMonthlyArchive($lastMonth);
+      } catch (\Throwable $e) {
+        $maintenanceResult['monthly_archive'] = ['success' => false, 'error' => $e->getMessage()];
+        error_log("Monthly archive failed: " . $e->getMessage());
+      }
+    }
+
+    // 任务2：每天执行数据库归档检查
+    try {
+      $dbArchiver = new DatabaseArchiver($pdo);
+
+      // 只有在需要时才归档（避免频繁操作）
+      if ($dbArchiver->shouldArchive()) {
+        $maintenanceResult['db_archive'] = $dbArchiver->archiveOldForecasts(30);
+      } else {
+        $maintenanceResult['db_archive'] = ['action' => 'skipped', 'reason' => 'threshold_not_met'];
+      }
+    } catch (\Throwable $e) {
+      $maintenanceResult['db_archive'] = ['success' => false, 'error' => $e->getMessage()];
+      error_log("DB archive failed: " . $e->getMessage());
     }
   }
 
@@ -70,13 +107,6 @@ try {
   $rel = function($abs) use ($prefix){ $rel=preg_replace('#^'.preg_quote($prefix,'#').'#','',$abs); return $rel ?: basename($abs); };
 
   $saved=[]; if (is_array($rows)) { foreach ($rows as $r) { $saved[]=['location_id'=>(int)$r['location_id'],'snapshot'=>$rel($r['snapshot'])]; } }
-
-  $savedArchive=[];
-  if (is_array($archiveRows)) {
-    foreach ($archiveRows as $r) {
-      $savedArchive[]=['location_id'=>(int)$r['location_id'],'snapshot'=>$rel($r['snapshot'])];
-    }
-  }
 
   $resp = $base + [
     'in_window'=>true,
@@ -87,14 +117,24 @@ try {
     'days'=>$days,
     'saved'=>$saved
   ];
-  if ($archiveRows !== null) {
+
+  // 添加回填结果
+  if ($archiveResult !== null) {
     $resp['archive'] = [
       'start'=>$archiveStart,
       'end'=>$archiveEnd,
-      'saved'=>$savedArchive
+      'fetched'=>count($archiveResult['fetched'] ?? []),
+      'skipped'=>count($archiveResult['skipped'] ?? []),
+      'details'=>$archiveResult
     ];
   }
-  echo json_encode($resp);
+
+  // 添加维护任务结果
+  if (!empty($maintenanceResult)) {
+    $resp['maintenance'] = $maintenanceResult;
+  }
+
+  echo json_encode($resp, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
 } catch (\Throwable $e) {
   http_response_code(500); echo json_encode(['ok'=>false,'error'=>$e->getMessage()]);
