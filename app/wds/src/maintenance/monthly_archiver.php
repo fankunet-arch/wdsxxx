@@ -226,6 +226,7 @@ class MonthlyArchiver {
             ':os' => $originalSize,
             ':cs' => $compressedSize
         ]);
+        $stmt->closeCursor(); // 关闭游标
     }
 
     /**
@@ -326,5 +327,6 @@ class MonthlyArchiver {
             ':j' => json_encode($results, JSON_UNESCAPED_UNICODE),
             ':e' => $results['error'] ?? null
         ]);
+        $stmt->closeCursor(); // 关闭游标
     }
 }

@@ -73,6 +73,7 @@ class DatabaseArchiver {
             $stmt = $this->pdo->prepare($insertSql);
             $stmt->execute([':cutoff' => $cutoffDate]);
             $archivedRows = $stmt->rowCount();
+            $stmt->closeCursor(); // 关闭游标
 
             // 2. 从热表删除
             $deleteSql = "
@@ -83,6 +84,7 @@ class DatabaseArchiver {
             $stmt = $this->pdo->prepare($deleteSql);
             $stmt->execute([':cutoff' => $cutoffDate]);
             $deletedRows = $stmt->rowCount();
+            $stmt->closeCursor(); // 关闭游标
 
             // 提交事务
             $this->pdo->commit();
@@ -90,7 +92,9 @@ class DatabaseArchiver {
 
             // 3. 优化表（在事务外执行，因为DDL会导致隐式提交）
             try {
-                $this->pdo->exec("OPTIMIZE TABLE wds_weather_hourly_forecast");
+                // OPTIMIZE TABLE 返回结果集，需要使用 query() 并关闭游标
+                $optimizeStmt = $this->pdo->query("OPTIMIZE TABLE wds_weather_hourly_forecast");
+                $optimizeStmt->closeCursor(); // 关闭游标
             } catch (\Throwable $optError) {
                 // OPTIMIZE失败不影响归档结果，记录日志即可
                 error_log("OPTIMIZE TABLE failed: " . $optError->getMessage());
@@ -126,7 +130,9 @@ class DatabaseArchiver {
      * @return bool
      */
     public function shouldArchive() : bool {
-        $count = $this->pdo->query("SELECT COUNT(*) FROM wds_weather_hourly_forecast")->fetchColumn();
+        $stmt = $this->pdo->query("SELECT COUNT(*) FROM wds_weather_hourly_forecast");
+        $count = $stmt->fetchColumn();
+        $stmt->closeCursor(); // 关闭游标
 
         // 如果热表超过10万行，建议归档
         return $count > 100000;
@@ -200,6 +206,7 @@ class DatabaseArchiver {
             ':dr' => $deleted,
             ':et' => $executionTime
         ]);
+        $stmt->closeCursor(); // 关闭游标
     }
 
     /**
@@ -215,7 +222,9 @@ class DatabaseArchiver {
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->closeCursor(); // 关闭游标
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $result;
     }
 }
