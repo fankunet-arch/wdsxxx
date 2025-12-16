@@ -23,8 +23,27 @@ class DatabaseArchiver {
         $startTime = microtime(true);
         $cutoffDate = date('Y-m-d H:i:s', strtotime("-{$daysOld} days"));
 
-        $this->pdo->beginTransaction();
+        // 检查归档表是否存在
         try {
+            $tableExists = $this->pdo->query("SHOW TABLES LIKE 'wds_weather_hourly_forecast_archive'")->fetch();
+            if (!$tableExists) {
+                return [
+                    'success' => false,
+                    'error' => 'Archive table does not exist. Please run: docs/wds_optimization_tables.sql'
+                ];
+            }
+        } catch (\Throwable $e) {
+            return [
+                'success' => false,
+                'error' => 'Failed to check archive table: ' . $e->getMessage()
+            ];
+        }
+
+        $transactionStarted = false;
+        try {
+            $this->pdo->beginTransaction();
+            $transactionStarted = true;
+
             // 1. 复制到归档表
             $insertSql = "
                 INSERT INTO wds_weather_hourly_forecast_archive
@@ -60,6 +79,7 @@ class DatabaseArchiver {
             $this->pdo->exec("OPTIMIZE TABLE wds_weather_hourly_forecast");
 
             $this->pdo->commit();
+            $transactionStarted = false;
 
             $executionTime = round((microtime(true) - $startTime) * 1000); // 毫秒
 
@@ -75,7 +95,9 @@ class DatabaseArchiver {
             ];
 
         } catch (\Throwable $e) {
-            $this->pdo->rollBack();
+            if ($transactionStarted) {
+                $this->pdo->rollBack();
+            }
             return [
                 'success' => false,
                 'error' => $e->getMessage()
