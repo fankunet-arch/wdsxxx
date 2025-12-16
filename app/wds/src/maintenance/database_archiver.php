@@ -44,10 +44,16 @@ class DatabaseArchiver {
             $this->pdo->beginTransaction();
             $transactionStarted = true;
 
-            // 1. 复制到归档表
+            // 1. 复制到归档表（列出所有字段，archived_at自动填充）
             $insertSql = "
                 INSERT INTO wds_weather_hourly_forecast_archive
-                SELECT *, UTC_TIMESTAMP(6) as archived_at
+                (location_id, run_time_utc, forecast_time_utc, temp_c, wmo_code,
+                 precip_mm_tenths, precip_prob_pct, wind_kph_tenths, gust_kph_tenths,
+                 created_at, updated_at, archived_at)
+                SELECT
+                    location_id, run_time_utc, forecast_time_utc, temp_c, wmo_code,
+                    precip_mm_tenths, precip_prob_pct, wind_kph_tenths, gust_kph_tenths,
+                    created_at, updated_at, UTC_TIMESTAMP(6)
                 FROM wds_weather_hourly_forecast
                 WHERE forecast_time_utc < :cutoff
                 ON DUPLICATE KEY UPDATE
@@ -75,11 +81,17 @@ class DatabaseArchiver {
             $stmt->execute([':cutoff' => $cutoffDate]);
             $deletedRows = $stmt->rowCount();
 
-            // 3. 优化表（回收空间）
-            $this->pdo->exec("OPTIMIZE TABLE wds_weather_hourly_forecast");
-
+            // 提交事务
             $this->pdo->commit();
             $transactionStarted = false;
+
+            // 3. 优化表（在事务外执行，因为DDL会导致隐式提交）
+            try {
+                $this->pdo->exec("OPTIMIZE TABLE wds_weather_hourly_forecast");
+            } catch (\Throwable $optError) {
+                // OPTIMIZE失败不影响归档结果，记录日志即可
+                error_log("OPTIMIZE TABLE failed: " . $optError->getMessage());
+            }
 
             $executionTime = round((microtime(true) - $startTime) * 1000); // 毫秒
 
@@ -95,12 +107,13 @@ class DatabaseArchiver {
             ];
 
         } catch (\Throwable $e) {
-            if ($transactionStarted) {
+            if ($transactionStarted && $this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
             return [
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ];
         }
     }
