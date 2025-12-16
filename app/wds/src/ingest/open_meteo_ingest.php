@@ -50,12 +50,16 @@ class OpenMeteoIngest {
     }
 
     private function active_locations() : array {
-        $rows = $this->pdo->query("SELECT location_id, name, lat, lon FROM wds_locations WHERE is_active=1 ORDER BY location_id")->fetchAll();
+        $stmt = $this->pdo->query("SELECT location_id, name, lat, lon FROM wds_locations WHERE is_active=1 ORDER BY location_id");
+        $rows = $stmt->fetchAll();
+        $stmt->closeCursor(); // 关闭游标
         return $rows ?: [];
     }
 
     private function business_hours() : array {
-        $row = $this->pdo->query("SELECT open_hour_local, close_hour_local FROM wds_business_hours LIMIT 1")->fetch();
+        $stmt = $this->pdo->query("SELECT open_hour_local, close_hour_local FROM wds_business_hours LIMIT 1");
+        $row = $stmt->fetch();
+        $stmt->closeCursor(); // 关闭游标
         $open = isset($row['open_hour_local']) ? (int)$row['open_hour_local'] : 12;
         $close = isset($row['close_hour_local']) ? (int)$row['close_hour_local'] : 22;
         return [$open, $close];
@@ -260,6 +264,7 @@ class OpenMeteoIngest {
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([':lid' => $locationId, ':d' => $date]);
         $count = (int)$stmt->fetchColumn();
+        $stmt->closeCursor(); // 关闭游标
 
         // 营业时段11小时，如果>=9则认为完整（允许1-2小时容错）
         return $count >= 9;

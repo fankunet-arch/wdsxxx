@@ -73,6 +73,7 @@ class DatabaseArchiver {
             $stmt = $this->pdo->prepare($insertSql);
             $stmt->execute([':cutoff' => $cutoffDate]);
             $archivedRows = $stmt->rowCount();
+            $stmt->closeCursor(); // 关闭游标
 
             // 2. 从热表删除
             $deleteSql = "
@@ -83,6 +84,7 @@ class DatabaseArchiver {
             $stmt = $this->pdo->prepare($deleteSql);
             $stmt->execute([':cutoff' => $cutoffDate]);
             $deletedRows = $stmt->rowCount();
+            $stmt->closeCursor(); // 关闭游标
 
             // 提交事务
             $this->pdo->commit();
@@ -126,7 +128,9 @@ class DatabaseArchiver {
      * @return bool
      */
     public function shouldArchive() : bool {
-        $count = $this->pdo->query("SELECT COUNT(*) FROM wds_weather_hourly_forecast")->fetchColumn();
+        $stmt = $this->pdo->query("SELECT COUNT(*) FROM wds_weather_hourly_forecast");
+        $count = $stmt->fetchColumn();
+        $stmt->closeCursor(); // 关闭游标
 
         // 如果热表超过10万行，建议归档
         return $count > 100000;
@@ -200,6 +204,7 @@ class DatabaseArchiver {
             ':dr' => $deleted,
             ':et' => $executionTime
         ]);
+        $stmt->closeCursor(); // 关闭游标
     }
 
     /**
@@ -215,7 +220,9 @@ class DatabaseArchiver {
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
+        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $stmt->closeCursor(); // 关闭游标
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return $result;
     }
 }
